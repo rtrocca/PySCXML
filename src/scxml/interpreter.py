@@ -24,10 +24,10 @@ This file is part of pyscxml.
 '''
 
 
-from node import *
+from .node import *
 
-from datastructures import OrderedSet
-from eventprocessor import Event
+from .datastructures import OrderedSet
+from .eventprocessor import Event
 from louie import dispatcher
 from scxml.eventprocessor import ScxmlOriginType
 import eventlet
@@ -158,7 +158,7 @@ class Interpreter(object):
         
     def selectEventlessTransitions(self):
         enabledTransitions = OrderedSet()
-        atomicStates = filter(isAtomicState, self.configuration)
+        atomicStates = list(filter(isAtomicState, self.configuration))
         atomicStates = sorted(atomicStates, key=documentOrder)
         for state in atomicStates:
             done = False
@@ -175,7 +175,7 @@ class Interpreter(object):
     
     def selectTransitions(self, event):
         enabledTransitions = OrderedSet()
-        atomicStates = filter(isAtomicState, self.configuration)
+        atomicStates = list(filter(isAtomicState, self.configuration))
         atomicStates = sorted(atomicStates, key=documentOrder)
 
         for state in atomicStates:
@@ -206,7 +206,7 @@ class Interpreter(object):
         Just like findLCA but only for parallel states.
         '''
         for anc in filter(isParallelState, getProperAncestors(states[0], None)):
-            if all(map(lambda(s): isDescendant(s,anc), states[1:])):
+            if all([isDescendant(s,anc) for s in states[1:]]):
                 return anc
     
     
@@ -227,7 +227,7 @@ class Interpreter(object):
         filteredTransitions = []
         for t in enabledTransitions:
             # does any t2 in filteredTransitions preempt t? if not, add t to filteredTransitions
-            if not any(map(lambda t2: self.preemptsTransition(t2, t), filteredTransitions)):
+            if not any([self.preemptsTransition(t2, t) for t2 in filteredTransitions]):
                 filteredTransitions.append(t)
         
         return OrderedSet(filteredTransitions)
@@ -245,7 +245,7 @@ class Interpreter(object):
         for t in enabledTransitions:
             if t.target:
                 tstates = self.getTargetStates(t.target)
-                if t.type == "internal" and isCompoundState(t.source) and all(map(lambda s: isDescendant(s,t.source), tstates)):
+                if t.type == "internal" and isCompoundState(t.source) and all([isDescendant(s,t.source) for s in tstates]):
                     ancestor = t.source
                 else:
                     ancestor = self.findLCA([t.source] + tstates)
@@ -265,7 +265,7 @@ class Interpreter(object):
                     f = lambda s0: isAtomicState(s0) and isDescendant(s0,s)
                 else:
                     f = lambda s0: s0.parent == s
-                self.historyValue[h.id] = filter(f,self.configuration) #+ s.parent 
+                self.historyValue[h.id] = list(filter(f,self.configuration)) #+ s.parent 
         for s in statesToExit:
             for content in s.onexit:
                 self.executeContent(content)
@@ -288,7 +288,7 @@ class Interpreter(object):
         for t in enabledTransitions:
             if t.target:
                 tstates = self.getTargetStates(t.target)
-                if t.type == "internal" and isCompoundState(t.source) and all(map(lambda s: isDescendant(s,t.source), tstates)):
+                if t.type == "internal" and isCompoundState(t.source) and all([isDescendant(s,t.source) for s in tstates]):
                     ancestor = t.source
                 else:
                     ancestor = self.findLCA([t.source] + tstates)
@@ -299,7 +299,7 @@ class Interpreter(object):
                         statesToEnter.add(anc)
                         if isParallelState(anc):
                             for child in getChildStates(anc):
-                                if not any(map(lambda s: isDescendant(s,child), statesToEnter)):
+                                if not any([isDescendant(s,child) for s in statesToEnter]):
                                     self.addStatesToEnter(child, statesToEnter,statesForDefaultEntry)
 
         statesToEnter.sort(key=enterOrder)
@@ -349,7 +349,7 @@ class Interpreter(object):
     
     def isInFinalState(self, s):
         if isCompoundState(s):
-            return any(map(lambda s: isFinalState(s) and s in self.configuration, getChildStates(s)))
+            return any([isFinalState(s) and s in self.configuration for s in getChildStates(s)])
         elif isParallelState(s):
             return all(map(self.isInFinalState, getChildStates(s)))
         else:
@@ -357,7 +357,7 @@ class Interpreter(object):
     
     def findLCA(self, stateList):
         for anc in filter(isCompoundState, getProperAncestors(stateList[0], None)):
-            if all(map(lambda(s): isDescendant(s,anc), stateList[1:])):
+            if all([isDescendant(s,anc) for s in stateList[1:]]):
                 return anc
     
     
@@ -386,7 +386,7 @@ class Interpreter(object):
             return t.cond()
                 
     def In(self, name):
-        return name in map(lambda x: x.id, self.configuration)
+        return name in [x.id for x in self.configuration]
     
     
     def send(self, name, data=None, invokeid = None, toQueue = None, sendid=None, eventtype="platform", raw=None, language=None):
@@ -397,7 +397,7 @@ class Interpreter(object):
         @param toQueue: if specified, the target queue on which to add the event
         
         """
-        if isinstance(name, basestring): name = name.split(".")
+        if isinstance(name, str): name = name.split(".")
         if not toQueue: toQueue = self.externalQueue
         evt = Event(name, data, invokeid, sendid=sendid, eventtype=eventtype)
         evt.origin = "#_scxml_" + self.dm.sessionid

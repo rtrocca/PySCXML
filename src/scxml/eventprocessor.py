@@ -34,7 +34,7 @@ class SCXMLEventProcessor(object):
         
         b.start("scxml:payload", {})
             
-        for k, v in data.items():
+        for k, v in list(data.items()):
             b.start("scxml:property", {"name" : k})
             if k != "content":
                 if language == "python":
@@ -143,7 +143,7 @@ class ScxmlMessage(object):
         xml_tree.start("scxml:message", msg_struct)
         xml_tree.start("scxml:payload", {})
 
-        for k, v in self.data.items():
+        for k, v in list(self.data.items()):
             xml_tree.start("scxml:property", {"name" : k})
             if k != "content":
                 if language == "python":
@@ -165,4 +165,4 @@ class ScxmlMessage(object):
 
 if __name__ == "__main__":
 #    print SCXMLEventProcessor.toxml("evt", "_parent", {}, "", "", language="json")
-    print "http://www.w3.org/TR/scxml/#SCXMLEventProcessor" == ScxmlOriginType() 
+    print("http://www.w3.org/TR/scxml/#SCXMLEventProcessor" == ScxmlOriginType()) 

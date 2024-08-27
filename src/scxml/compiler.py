@@ -19,26 +19,26 @@ This file is part of pyscxml.
     
 '''
 
-from node import *
+from .node import *
 import re, sys
 from functools import partial
-from messaging import UrlGetter, get_path
+from .messaging import UrlGetter, get_path
 from louie import dispatcher
-from urllib2 import URLError
+from urllib.error import URLError
 from eventlet.green.urllib2 import urlopen #@UnresolvedImport
-from eventprocessor import Event, SCXMLEventProcessor as Processor, ScxmlMessage
-from invoke import *
+from .eventprocessor import Event, SCXMLEventProcessor as Processor, ScxmlMessage
+from .invoke import *
 from xml.parsers.expat import ExpatError
 #from xml.etree import ElementTree as etree
 from lxml import etree
 import textwrap
 
 import time
-from datamodel import *
-from errors import *
+from .datamodel import *
+from .errors import *
 from eventlet import Queue
 import scxml.pyscxml
-from datastructures import xpathparser
+from .datastructures import xpathparser
 import eventlet
 from scxml.datastructures import Nodeset
 import xml.dom.minidom as minidom
@@ -57,7 +57,7 @@ def split_ns(node):
 ns = "http://www.w3.org/2005/07/scxml"
 pyscxml_ns = "http://code.google.com/p/pyscxml"
 tagsForTraversal = ["scxml", "state", "parallel", "history", "final", "transition", "invoke", "onentry", "onexit", "datamodel"]
-tagsForTraversal = map(prepend_ns, tagsForTraversal)
+tagsForTraversal = list(map(prepend_ns, tagsForTraversal))
 custom_exec_mapping = {}
 preprocess_mapping = {}
 datamodel_mapping = {
@@ -125,22 +125,22 @@ class Compiler(object):
                 output = elem.get(attr) or self.getExprValue("%s(%s)" % (stringify[self.datamodel], expr))
                 output = str(output)
                     
-            except ExprEvalError, e:
+            except ExprEvalError as e:
                 raise AttributeEvalError(e, elem, attr + "expr")
             return output if not is_list else output.split(" ")
     
     def init_scripts(self, tree):
         scripts = tree.getiterator(prepend_ns("script"))
-        scripts = filter(lambda x: x.get("src"), scripts)
+        scripts = [x for x in scripts if x.get("src")]
         
         self.script_src = self.parallelize_download(scripts)
         
-        failedList = filter(lambda x: isinstance(x[1], Exception), self.script_src.items())
+        failedList = [x for x in list(self.script_src.items()) if isinstance(x[1], Exception)]
         if not failedList: return
         # decorate the output.
-        linenums = map(lambda x: str(x[0].sourceline), failedList)
+        linenums = [str(x[0].sourceline) for x in failedList]
         if len(linenums) > 2:   
-            linenums[:-2] = map(lambda x: x + ",", linenums[:-2])
+            linenums[:-2] = [x + "," for x in linenums[:-2]]
         plur = ""
         if len(failedList) > 1:
             plur = "s"
@@ -151,16 +151,16 @@ class Compiler(object):
     def try_execute_content(self, parent):
         try:
             self.do_execute_content(parent)
-        except SendError, e:
+        except SendError as e:
             self.logger.error("Parsing of send node failed on line %s." % e.elem.sourceline)
             self.logger.error(str(e))
             self.raiseError("error." + e.error_type, e, sendid=e.sendid)
-        except (CompositeError, AtomicError), e: #AttributeEvalError, ExprEvalError, ExecutableError
+        except (CompositeError, AtomicError) as e: #AttributeEvalError, ExprEvalError, ExecutableError
             getFirst = lambda x: x.exception if isinstance(x, AtomicError) else getFirst(x.exception)
             self.logger.error(e)
             self.raiseError("error.execution." + type(getFirst(e)).__name__.lower(), e)
             
-        except Exception, e:
+        except Exception as e:
             self.logger.exception("An unknown error occurred when executing content in block on line %s." % parent.sourceline)
             self.raiseError("error.execution", e)
             
@@ -177,7 +177,7 @@ class Compiler(object):
                 if node_name == "log":
                     try:
                         self.log_function(node.get("label"), self.getExprValue(node.get("expr")))
-                    except ExprEvalError, e:
+                    except ExprEvalError as e:
                         raise AttributeEvalError(e, node, "expr")
                 elif node_name == "raise":
                     eventName = node.get("event").split(".")
@@ -193,9 +193,9 @@ class Compiler(object):
                         self.parseSend(node, sendid)
                     except AttributeEvalError:
                         raise
-                    except (SendExecutionError, SendCommunicationError), e: 
+                    except (SendExecutionError, SendCommunicationError) as e: 
                         raise SendError(e, node, e.type, sendid=sendid)
-                    except Exception, e:
+                    except Exception as e:
                         raise SendError(e, node, "execution", sendid=sendid)
                 elif node_name == "cancel":
                     sendid = self.parseAttr(node, "sendid")
@@ -207,13 +207,13 @@ class Compiler(object):
                         self.dm.assign(node)
                     except CompositeError:
                         raise
-                    except Exception, e:
+                    except Exception as e:
                         raise ExecutableError(AtomicError(e), node)
                 elif node_name == "script":
                     try:
                         src = node.text or self.script_src.get(node) or ""
                         self.execExpr(src)
-                    except ExprEvalError, e:
+                    except ExprEvalError as e:
                         raise ExecutableError(e, node)
                         
                 elif node_name == "if":
@@ -231,9 +231,9 @@ class Compiler(object):
                         
 #                        if self.datamodel == "xpath":
 #                            assert all(map(lambda x: x, array)) 
-                    except ExprEvalError, e:
+                    except ExprEvalError as e:
                         raise AttributeEvalError(e, node, "array")
-                    except TypeError, e:
+                    except TypeError as e:
                         err = DataModelError(e)
                         raise AttributeEvalError(err, node, "array")
                     for index, item in enumerate(array, startIndex):
@@ -245,9 +245,9 @@ class Compiler(object):
                             else:
                                 self.dm.references[node.get("item")] = item
                                 
-                        except DataModelError, e:
+                        except DataModelError as e:
                             raise AttributeEvalError(e, node, "item")
-                        except ValueError, e:
+                        except ValueError as e:
                             raise AttributeEvalError(DataModelError(e), node, "item")
                             
                         try:
@@ -260,11 +260,11 @@ class Compiler(object):
                             
 
 
-                        except DataModelError, e:
+                        except DataModelError as e:
                             raise AttributeEvalError(e, node, "index")
                         try:
                             self.do_execute_content(node)
-                        except Exception, e:
+                        except Exception as e:
                             raise ExecutableContainerError(e, node)
                     if self.datamodel == "ecmascript":
                         c.leave()
@@ -287,7 +287,7 @@ class Compiler(object):
                     elif node.get("expr"):
                         try:
                             xml = self.getExprValue("(%s)" % node.get("expr"))
-                        except Exception, e:
+                        except Exception as e:
                             e = ExecutableError(node, 
                                                 "An expr error caused the start_session to fail on line %s" 
                                                 % node.sourceline)
@@ -323,7 +323,7 @@ class Compiler(object):
     def parseIf(self, node):
         def gen_prefixExec(itr):
             for elem in itr:
-                if elem.tag not in map(prepend_ns, ["elseif", "else"]):
+                if elem.tag not in list(map(prepend_ns, ["elseif", "else"])):
                     yield elem
                 else:
                     break
@@ -339,7 +339,7 @@ class Compiler(object):
             if not isElse:
                 try:    
                     cond = self.getExprValue(ifNode.get("cond"))
-                except ExprEvalError, e:
+                except ExprEvalError as e:
                     raise AttributeEvalError(e, ifNode, "cond")
             try:
                 if isElse:
@@ -348,7 +348,7 @@ class Compiler(object):
                 elif cond:
                     self.do_execute_content(execList)
                     break
-            except Exception, e:
+            except Exception as e:
                 raise ExecutableContainerError(e, node)
     
     def parseData(self, child, getContent=True, forSend=False):
@@ -421,7 +421,7 @@ class Compiler(object):
                 data = raw
             
         
-        except ExprEvalError, e:
+        except ExprEvalError as e:
             self.logger.exception("Line %s: send not executed: parsing of data failed" % getattr(sendNode, "sourceline", 'unknown'))
 #            self.raiseError("error.execution", e, sendid=sendid)
             raise e
@@ -568,7 +568,7 @@ class Compiler(object):
         else:
             try:
                 sender()
-            except Exception, e:
+            except Exception as e:
                 raise SendExecutionError("%s: %s" % (e.__class__, e))
         
     
@@ -614,7 +614,7 @@ class Compiler(object):
         def init():
             try:
                 self.setDatamodel(tree)
-            except Exception, e:
+            except Exception as e:
                 self.raiseError("error.execution", e)
         self.instantiate_datamodel = init
         self.init_scripts(tree)
@@ -638,7 +638,7 @@ class Compiler(object):
 #                            raise ScriptFetchError(msg)
                     try:
                         self.execExpr(src)
-                    except ExprEvalError, e:
+                    except ExprEvalError as e:
                         #TODO: we should probably crash here.
                         self.logger.exception("An exception was raised in a top-level script element.")
                         
@@ -667,14 +667,14 @@ class Compiler(object):
                         try:
                             data = self.parseData(node, forSend=True)
                             
-                            if self.datamodel == "xpath" and not all(map(lambda x: type(x) is tuple, data)):
+                            if self.datamodel == "xpath" and not all([type(x) is tuple for x in data]):
                                 return data
                             try:
                                 return dict(data) 
                             except (TypeError, ValueError):
                                 # not key/value data, probably from <content>
                                 return data
-                        except Exception, e:
+                        except Exception as e:
 #                            TODO: what happens if donedata in the top-level final fails?
 #                             we can't set the _event.data with anything. answer: catch the error in 
 #                            the interpreter, insert error in outgoing done event.
@@ -700,12 +700,12 @@ class Compiler(object):
                 if node.get("target"):
                     t.target = node.get("target").split(" ")
                 if node.get("event"):
-                    t.event = map(lambda x: re.sub(r"(.*)\.\*$", r"\1", x).split("."), node.get("event").split(" "))
+                    t.event = [re.sub(r"(.*)\.\*$", r"\1", x).split(".") for x in node.get("event").split(" ")]
                 if node.get("cond"):
                     def f(expr):
                         try:
                             return self.getExprValue(expr)
-                        except Exception, e:
+                        except Exception as e:
                             self.raiseError("error.execution", e)
                             self.logger.error("Evaluation of cond failed on line %s: %s" % (node.sourceline, expr))
                         
@@ -733,7 +733,7 @@ class Compiler(object):
                 def initDatamodel(datalist):
                     try:
                         self.setDataList(datalist)
-                    except Exception, e:
+                    except Exception as e:
                         self.logger.exception("Evaluation of a data element failed.")
                 parentState.initDatamodel = partial(initDatamodel, node.findall(prepend_ns("data")))
                 
@@ -760,11 +760,11 @@ class Compiler(object):
         def start_invoke(wrapper):
             try:
                 inv = self.parseInvoke(node, parentId, n)
-            except InvokeError, e:
+            except InvokeError as e:
                 self.logger.exception("Line %s: Exception while parsing invoke." % (node.sourceline))
                 self.raiseError("error.execution.invoke.parseerror", e )
                 return
-            except Exception, e:
+            except Exception as e:
                 self.logger.exception("Line %s: Exception while parsing invoke." % (node.sourceline))
                 self.raiseError("error.execution.invoke." + type(e).__name__.lower(), e)
                 return
@@ -781,7 +781,7 @@ class Compiler(object):
 #                        self.dm["_x"]["sessions"][sessionid] = inv
                     dispatcher.connect(onCreated, "created", inv, weak=False)
                 inv.start(self.dm.sessionid)
-            except Exception, e:
+            except Exception as e:
 #                del self.dm["_x"]["sessions"][sessionid]
                 self.logger.exception("Line %s: Exception while parsing invoke xml." % (node.sourceline))
                 self.raiseError("error.execution.invoke." + type(e).__name__.lower(), e)
@@ -825,7 +825,7 @@ class Compiler(object):
             contentNode = node.find(prepend_ns("content"))
             if contentNode != None:
                 cnt = self.parseContent(contentNode)
-                if isinstance(cnt, basestring):
+                if isinstance(cnt, str):
                     inv.content = cnt
                 elif isinstance(cnt, list):
                     #TODO: if len(cnt) > 0, we could throw exception.
@@ -881,7 +881,7 @@ class Compiler(object):
             initial.exe = partial(self.try_execute_content, transitionNode)
             return initial
         else: # has neither initial tag or attribute, so we'll make the first valid state a target instead.
-            childNodes = filter(lambda x: x.tag in map(prepend_ns, ["state", "parallel", "final"]), list(node)) 
+            childNodes = [x for x in list(node) if x.tag in list(map(prepend_ns, ["state", "parallel", "final"]))] 
             if childNodes:
                 return Initial([childNodes[0].get("id")])
             return None # leaf nodes have no initial 
@@ -898,7 +898,7 @@ class Compiler(object):
         if top_level is not None:
             try:
                 self.setDataList(top_level)
-            except Exception, e:
+            except Exception as e:
                 self.raiseError("error.execution", e)
 #                raise ParseError("Parsing of data tag caused document startup to fail. \n%s" % e)
             
@@ -908,16 +908,16 @@ class Compiler(object):
                 top_level = top_level if top_level is not None else []
                 # filtering out the top-level data elements
                 self.setDataList([data for data in iterdata() if data not in top_level])
-            except Exception, e:
+            except Exception as e:
                 self.logger.exception("Parsing of a data element failed.")
         
-        for key, value in self.initData.items():
+        for key, value in list(self.initData.items()):
             if key in self.dm: self.dm[key] = value
             
     
     def setDataList(self, datalist):
         
-        dl_mapping = self.parallelize_download(filter(lambda x: x.get("src"), datalist))
+        dl_mapping = self.parallelize_download([x for x in datalist if x.get("src")])
         for node in datalist:
             key = node.get("id")
             value = None
@@ -933,7 +933,7 @@ class Compiler(object):
             if node.get("expr") or len(node) > 0 or node.text:
                 try:
                     value = self.parseContent(node)
-                except Exception, e:
+                except Exception as e:
                     self.logger.error("Failed to parse data element at line %s:\n%s" % (node.sourceline, e))
                     self.raiseError("error.execution", e)
             
@@ -954,7 +954,7 @@ class Compiler(object):
             try:
                 return (node, urlopen(src).read())
                 
-            except Exception, e:
+            except Exception as e:
                 return (node, e)
         
         pool = eventlet.greenpool.GreenPool()
@@ -969,7 +969,7 @@ class Compiler(object):
                 "default namespace declaration. It has been added for you, for parsing purposes.")
         
         if root.nsmap.get(None) and root.nsmap.get(None) == "":
-            print re.sub("xmlns=[\"'][\"']", "xmlns='http://www.w3.org/2005/07/scxml'", xmlStr)
+            print(re.sub("xmlns=[\"'][\"']", "xmlns='http://www.w3.org/2005/07/scxml'", xmlStr))
             return re.sub("xmlns=[\"'][\"']", "xmlns='http://www.w3.org/2005/07/scxml'", xmlStr)
         elif not root.nsmap.get(None) or not root.nsmap[None] == "http://www.w3.org/2005/07/scxml":
             self.logger.warn(warnmsg)

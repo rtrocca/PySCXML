@@ -7,6 +7,7 @@ Created on Jan 4, 2010
 #from xml.etree import ElementTree as etree
 from lxml import etree
 from copy import deepcopy
+from functools import reduce
 
 
 class Nodeset(list):
@@ -85,8 +86,8 @@ def dictToXML(dictionary, root="root", root_attrib={}):
             parent.append(deepcopy(d))
             return
         
-        for k, v in d.items():
-            if isinstance(k, basestring):
+        for k, v in list(d.items()):
+            if isinstance(k, str):
                 new = parser.makeelement(k)
             else:
                 new = deepcopy(k)
@@ -109,7 +110,7 @@ def dictToXML(dictionary, root="root", root_attrib={}):
 
 if __name__ == '__main__':
     import sys
-    from eventprocessor import Event
+    from .eventprocessor import Event
     
     
 #    d = {
@@ -128,10 +129,10 @@ if __name__ == '__main__':
           <book title="title2"/>
         </books>
         ''', parser=xpathparser).xpath(".")
-    print xpathData, Event("hello", data=xpathData).__dict__
-    print etree.tostring( dictToXML(Event("hello", data=xpathData).__dict__, root="data", root_attrib={"id" : "key"}), pretty_print=True)
+    print(xpathData, Event("hello", data=xpathData).__dict__)
+    print(etree.tostring( dictToXML(Event("hello", data=xpathData).__dict__, root="data", root_attrib={"id" : "key"}), pretty_print=True))
     sys.exit()
 #    e = Event("hello", data={"d1" : etree.fromstring("<elem/>")})
     e = Event("hello", data={"d1" : 123})
 #    print e.__dict__
-    print etree.tostring( dictToXML({"p1" : "val"}, root="data", root_attrib={"id" : "key"}), pretty_print=True)
+    print(etree.tostring( dictToXML({"p1" : "val"}, root="data", root_attrib={"id" : "key"}), pretty_print=True))

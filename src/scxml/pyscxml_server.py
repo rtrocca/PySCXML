@@ -19,14 +19,14 @@ Created on Dec 15, 2010
 @author: Johan Roxendal
 '''
 
-from eventprocessor import SCXMLEventProcessor as Processor, Event
+from .eventprocessor import SCXMLEventProcessor as Processor, Event
 from scxml.pyscxml import MultiSession
 from xml.parsers.expat import ExpatError
 import cgi
 import logging
 import eventlet
-from StringIO import StringIO
-import os, urllib
+from io import StringIO
+import os, urllib.request, urllib.parse, urllib.error
 from pprint import pprint
 from scxml.datamodel import XPathDatamodel
 
@@ -93,16 +93,16 @@ class PySCXMLServer(MultiSession):
             del sm.datamodel["_ioprocessors"]
             sm.datamodel["_ioprocessors"] = d
         else:
-            for k, v in d.items():
+            for k, v in list(d.items()):
                 sm.datamodel["_ioprocessors"][k] = v
     
     def request_handler(self, environ, start_response):
         status = '200 OK'
         try:
-            pathlist = filter(bool, environ["PATH_INFO"].split("/"))
+            pathlist = list(filter(bool, environ["PATH_INFO"].split("/")))
             session = pathlist[0]
             type = pathlist[1]
-        except Exception, e:
+        except Exception as e:
             status = "403 FORBIDDEN"
             self.logger.info(str(e))
             start_response(status, [('Content-type', 'text/plain')])
@@ -118,7 +118,7 @@ class PySCXMLServer(MultiSession):
                                environ=environ,
                                keep_blank_values=True)
         try:
-            data = dict([(key, fs.getvalue(key)) for key in fs.keys()])
+            data = dict([(key, fs.getvalue(key)) for key in list(fs.keys())])
         except TypeError:
             data = input
         
@@ -141,15 +141,15 @@ class PySCXMLServer(MultiSession):
             if sm.is_response:
                 sm.interpreter.externalQueue.put(event)
                 output, headers = sm.datamodel.response.get() #blocks
-                start_response(status, headers.items())
+                start_response(status, list(headers.items()))
             else:
                 eventlet.spawn_after(0.1, sm.interpreter.externalQueue.put, event)
-                start_response(status, headers.items())
+                start_response(status, list(headers.items()))
             
         except AssertionError:
             self.logger.error("No default xml is declared, so sessions can't be dynamically initialized.")
             status = '403 FORBIDDEN'
-        except ExpatError, e:
+        except ExpatError as e:
             self.logger.error("Parsing of incoming scxml message failed for message %s" % fs.getvalue("_content") )
             status = '400 BAD REQUEST'
             output = str(e)
@@ -167,13 +167,13 @@ class WebsocketWSGI(PySCXMLServer):
         PySCXMLServer.set_processors(self, sm)
         loc = "ws://%s:%s/%s%s/websocket" % (self.host, self.port, self.session_path, sm.datamodel.sessionid)
         if isinstance(sm.datamodel, XPathDatamodel):
-            from datastructures import dictToXML
+            from .datastructures import dictToXML
             sm.datamodel["_ioprocessors"].append(dictToXML({"websocket" : {"location" : loc}})) 
         else:
             sm.datamodel["_ioprocessors"]["websocket"] = {"location" : loc}
     
     def websocket_handler(self, ws):
-        pathlist = filter(lambda x: bool(x), ws.path.split("/"))
+        pathlist = [x for x in ws.path.split("/") if bool(x)]
         
         session = pathlist[0]
         sm = self.sm_mapping.get(session) or self.init_session(session)
@@ -217,13 +217,13 @@ def type_basichttp(session, data, sm, environ, raw=None):
         event.origintype = "basichttp"
         event.origin = "unreachable"
     else:
-        pth = filter(lambda x: bool(x), environ["PATH_INFO"].split("/")[3:])
+        pth = [x for x in environ["PATH_INFO"].split("/")[3:] if bool(x)]
         event = Event(["HTTP", environ['REQUEST_METHOD']] + pth, data=data)
         event.origintype = "basichttp"
         event.origin = "unreachable"
         
         
-    event.raw = repr(environ) + "\n\n" + urllib.unquote(raw) + "\n"
+    event.raw = repr(environ) + "\n\n" + urllib.parse.unquote(raw) + "\n"
     return event
 
 @ioprocessor('scxml')
@@ -258,10 +258,10 @@ if __name__ == "__main__":
             else:
                 self.failed.append(sender.sessionid)
             
-            print self.passed, self.failed, self.n_sessions    
+            print(self.passed, self.failed, self.n_sessions)    
             if len(self.passed + self.failed) == self.n_sessions:
                 
-                print "all done!", os.path.join(sender.filedir, sender.filename)
+                print("all done!", os.path.join(sender.filedir, sender.filename))
             
             
             

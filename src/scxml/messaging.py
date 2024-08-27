@@ -8,7 +8,7 @@ from louie import dispatcher
 import os
 from eventlet.green import urllib2
 
-from urllib import urlencode
+from urllib.parse import urlencode
 from functools import partial
 import eventlet
 
@@ -16,7 +16,7 @@ def exec_async(io_function):
     eventlet.spawn_n(io_function)
     
 
-class UrlGetter(urllib2.HTTPDefaultErrorHandler):
+class UrlGetter(urllib.request.HTTPDefaultErrorHandler):
     HTTP_RESULT = "HTTP_RESULT"
     HTTP_ERROR = "HTTP_ERROR"
     URL_ERROR = "URL_ERROR"
@@ -35,19 +35,19 @@ class UrlGetter(urllib2.HTTPDefaultErrorHandler):
             from restlib import RestfulRequest #@UnresolvedImport
             req = RestfulRequest(url, data=data, method=type.upper())
         else:
-            req = urllib2.Request(url, data, headers=headers)
+            req = urllib.request.Request(url, data, headers=headers)
         
-        opener = urllib2.build_opener(self)
+        opener = urllib.request.build_opener(self)
         eventlet.greenthread.sleep()
         try:
             f = opener.open(req, data=data)
             if f.code is None or str(f.code)[0] == "2":
                 dispatcher.send(UrlGetter.HTTP_RESULT, self, result=f.read(), source=url, code=f.code)
             else:
-                e = urllib2.HTTPError(url, f.code, "A code %s HTTP error has occurred when trying to send to target %s" % (f.code, url), req.headers, f)
+                e = urllib.error.HTTPError(url, f.code, "A code %s HTTP error has occurred when trying to send to target %s" % (f.code, url), req.headers, f)
                 dispatcher.send(UrlGetter.HTTP_ERROR, self, exception=e)
 #        TODO: make sure we're supposed to listen to URLErrors
-        except (urllib2.URLError, ValueError), e:
+        except (urllib.error.URLError, ValueError) as e:
             dispatcher.send(UrlGetter.URL_ERROR, self, exception=e, url=url)
             
         
@@ -74,18 +74,18 @@ if __name__ == '__main__':
     getter = UrlGetter()
     
     def onHttpResult( signal, **named ):
-        print '  result', named
+        print('  result', named)
     def onHttpError( signal, **named ):
-        print '  error', named["exception"]
+        print('  error', named["exception"])
         raise named["exception"]
     def onUrlError( signal, **named ):
-        print '  error', named
+        print('  error', named)
     
     
     dispatcher.connect(onHttpResult, UrlGetter.HTTP_RESULT, getter)
     dispatcher.connect(onHttpError, UrlGetter.HTTP_ERROR, getter)
     dispatcher.connect(onUrlError, UrlGetter.URL_ERROR, getter)
-    print os.getcwd()
+    print(os.getcwd())
 #    getter.get_async("http://localhost/cgi-bin/cgi_test.py", {'mykey' : 'myvalue'})
     getter.get_async("file:messaging.py", {})
     

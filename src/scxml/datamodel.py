@@ -9,7 +9,7 @@ import re
 from lxml import etree, objectify
 from copy import deepcopy
 from scxml.datastructures import dictToXML
-from errors import ExecutableError, IllegalLocationError,\
+from .errors import ExecutableError, IllegalLocationError,\
     AttributeEvalError, ExprEvalError, DataModelError, AtomicError
 import logging
 import xml.dom.minidom as minidom
@@ -36,7 +36,7 @@ def exceptionFormatter(f):
     def wrapper(*args, **kwargs):
         try:
             return f(*args, **kwargs)
-        except Exception, e:
+        except Exception as e:
             traceback = getTraceback() 
             raise ExprEvalError(e, traceback)
     return wrapper
@@ -147,7 +147,7 @@ class PythonDataModel(dict, ImperativeDataModel):
         return eval(expr, self)
     @exceptionFormatter
     def execExpr(self, expr):
-        exec expr in self
+        exec(expr, self)
         
     
 
@@ -189,7 +189,7 @@ class ECMAScriptDataModel(ImperativeDataModel):
         return str(self.g.__dict__)
     
     def keys(self):
-        return self.g.__dict__.keys()
+        return list(self.g.__dict__.keys())
     
     def hasLocation(self, location):
         return self.evalExpr("typeof(%s) != 'undefined'" % location)
@@ -236,10 +236,10 @@ class ECMAScriptDataModel(ImperativeDataModel):
         with JSContext(self.g) as c:    
             try:
                 ret = c.eval(expr)
-            except Exception, e:
+            except Exception as e:
                 raise ExprEvalError(e, [])
 #            TODO: this causes variabels typeof == 'undefined' to become null instead. 
-            for key in c.locals.keys(): setattr(self.g, key, c.locals[key])
+            for key in list(c.locals.keys()): setattr(self.g, key, c.locals[key])
             return ret
     def execExpr(self, expr):
         self.evalExpr(expr)
@@ -252,7 +252,7 @@ class XPathDatamodel(object):
         
         self.logger = logging.getLogger("pyscxml.XPathDatamodel")
         
-        from datastructures import xpathparser
+        from .datastructures import xpathparser
         self.parser = xpathparser
         
         self.root = self.parser.makeelement("datamodel")
@@ -270,7 +270,7 @@ class XPathDatamodel(object):
         data_dict.update(self.references)
         try:
             return self.root.xpath(key, **data_dict)
-        except etree.XPathEvalError, e:
+        except etree.XPathEvalError as e:
             raise DataModelError("Error when evaluating expression '%s':\n%s" % (key, e))
     
     def __setitem__(self, key, val):
@@ -330,7 +330,7 @@ class XPathDatamodel(object):
         if expr:
             val = self[expr]
             if not isinstance(val, list): val = [val]
-            val = map(deepcopy, val)
+            val = list(map(deepcopy, val))
         else:
             val = assignNode.xpath("./*")
         
@@ -427,6 +427,6 @@ if __name__ == '__main__':
     ctxt = PyV8.JSContext()          # create a context with an implicit global object
     ctxt.enter()                     # enter the context (also support with statement)
     ctxt.eval("var a;")
-    print ctxt.eval("typeof a")        
+    print(ctxt.eval("typeof a"))        
     
     

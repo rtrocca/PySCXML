@@ -19,7 +19,7 @@ This file is part of pyscxml.
     @contact: johan@roxendal.com
 '''
 from louie import dispatcher
-from messaging import exec_async
+from .messaging import exec_async
 from functools import partial
 from scxml.messaging import UrlGetter
 import logging

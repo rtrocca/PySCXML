@@ -18,17 +18,17 @@ This file is part of PySCXML.
     @contact: johan@roxendal.com
 '''
 
-import compiler
-from interpreter import Interpreter
+from . import compiler
+from .interpreter import Interpreter
 from louie import dispatcher
 import logging
 import os
 import eventlet
 import errno
 import re
-from eventprocessor import Event
-from messaging import get_path
-from datamodel import XPathDatamodel
+from .eventprocessor import Event
+from .messaging import get_path
+from .datamodel import XPathDatamodel
 from lxml import etree
 import sys
 import time
@@ -47,12 +47,12 @@ def default_logfunction(label, msg):
         return x
     
     if isinstance(msg, list):
-        msg = map(f, msg)
+        msg = list(map(f, msg))
         try:
             msg = "\n".join(msg)
         except:
             msg = str(msg)
-    print "%s%s%s" % (label, ": " if label and msg is not None else "", msg)
+    print("%s%s%s" % (label, ": " if label and msg is not None else "", msg))
 
 
 class StateMachine(object):
@@ -118,7 +118,7 @@ class StateMachine(object):
     def _open_document(self, uri):
         if hasattr(uri, "read"):
             return uri.read()
-        elif isinstance(uri, basestring) and re.search("<(.+:)?scxml", uri): #"<scxml" in uri:
+        elif isinstance(uri, str) and re.search("<(.+:)?scxml", uri): #"<scxml" in uri:
             self.filename = "<string source>"
             self.filedir = None
             return uri
@@ -197,7 +197,7 @@ class StateMachine(object):
     def on_exit(self, sender, final):
         if sender is self.interpreter:
             self.is_finished = True
-            for timer in self.compiler.timer_mapping.values():
+            for timer in list(self.compiler.timer_mapping.values()):
                 eventlet.greenthread.cancel(timer)
                 del timer
             dispatcher.disconnect(self, "signal_exit", self.interpreter)
@@ -233,12 +233,12 @@ class MultiSession(object):
         self.default_datamodel = default_datamodel
         self.log_function = log_function
         self.logger = logging.getLogger("pyscxml.multisession")
-        for sessionid, xml in init_sessions.items():
+        for sessionid, xml in list(init_sessions.items()):
             self.make_session(sessionid, xml)
             
             
     def __iter__(self):
-        return iter(list(self.sm_mapping.itervalues()))
+        return iter(list(self.sm_mapping.values()))
     
     def __delitem__(self, val):
         del self.sm_mapping[val]
@@ -269,7 +269,7 @@ class MultiSession(object):
         not been started, only initialized.
          '''
         assert source or self.default_scxml_source
-        if isinstance(source, basestring):
+        if isinstance(source, str):
             sm = StateMachine(source or self.default_scxml_source,
                                 sessionid=sessionid,
                                 default_datamodel=self.default_datamodel,

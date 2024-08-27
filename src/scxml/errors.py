@@ -115,7 +115,7 @@ if __name__ == '__main__':
     def f():
         try:
             1/0
-        except ZeroDivisionError, e:
+        except ZeroDivisionError as e:
 #            logging.exception("argh")
 #            raise ExecutableError("you broke it.", 10, sys.exc_info()[2])
             raise ExprEvalError(tb.format_exc(sys.exc_info()[2]))
