@@ -6,29 +6,29 @@ Created on Nov 4, 2010
 
 from louie import dispatcher
 import os
-from eventlet.green import urllib2
-
+#from eventlet.green import urllib2
+import urllib
 from urllib.parse import urlencode
 from functools import partial
 import eventlet
 
 def exec_async(io_function):
     eventlet.spawn_n(io_function)
-    
+
 
 class UrlGetter(urllib.request.HTTPDefaultErrorHandler):
     HTTP_RESULT = "HTTP_RESULT"
     HTTP_ERROR = "HTTP_ERROR"
     URL_ERROR = "URL_ERROR"
-    
-    
+
+
     def get_async(self, url, data, type=None, content_type="application/x-www-form-urlencoded"):
         exec_async(partial(self.get_sync, url, data, type=type, content_type=content_type))
-    
+
     def get_sync(self, url, data, type=None, content_type="application/x-www-form-urlencoded"):
         try:
             data = urlencode(data)
-        except: # data is probably a string to be send directly. 
+        except: # data is probably a string to be send directly.
             pass
         headers = {"Content-Type" : content_type}
         if type and type.upper() not in ("POST", "GET"):
@@ -36,7 +36,7 @@ class UrlGetter(urllib.request.HTTPDefaultErrorHandler):
             req = RestfulRequest(url, data=data, method=type.upper())
         else:
             req = urllib.request.Request(url, data, headers=headers)
-        
+
         opener = urllib.request.build_opener(self)
         eventlet.greenthread.sleep()
         try:
@@ -49,14 +49,14 @@ class UrlGetter(urllib.request.HTTPDefaultErrorHandler):
 #        TODO: make sure we're supposed to listen to URLErrors
         except (urllib.error.URLError, ValueError) as e:
             dispatcher.send(UrlGetter.URL_ERROR, self, exception=e, url=url)
-            
-        
-    
+
+
+
 #    def http_error_default(self, req, fp, code, msg, headers):
-#        result = urllib2.HTTPError(                           
-#            req.get_full_url(), code, msg, headers, fp)       
-#        result.status = code                                  
-#        return result        
+#        result = urllib2.HTTPError(
+#            req.get_full_url(), code, msg, headers, fp)
+#        result.status = code
+#        return result
 
 
 def get_path(local_path, additional_paths=""):
@@ -67,12 +67,12 @@ def get_path(local_path, additional_paths=""):
             if os.path.isfile(path):
                 return (path, search_path)
         return (None, search_path)
-    
+
 if __name__ == '__main__':
-    
+
 
     getter = UrlGetter()
-    
+
     def onHttpResult( signal, **named ):
         print('  result', named)
     def onHttpError( signal, **named ):
@@ -80,13 +80,12 @@ if __name__ == '__main__':
         raise named["exception"]
     def onUrlError( signal, **named ):
         print('  error', named)
-    
-    
+
+
     dispatcher.connect(onHttpResult, UrlGetter.HTTP_RESULT, getter)
     dispatcher.connect(onHttpError, UrlGetter.HTTP_ERROR, getter)
     dispatcher.connect(onUrlError, UrlGetter.URL_ERROR, getter)
     print(os.getcwd())
 #    getter.get_async("http://localhost/cgi-bin/cgi_test.py", {'mykey' : 'myvalue'})
     getter.get_async("file:messaging.py", {})
-    
-    
+
