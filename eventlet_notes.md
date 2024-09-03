@@ -20,7 +20,7 @@ pyscxml_server.py
 eventlet.spawn_after
 eventlet.spawn
 eventlet wsgi
-wsgi.server(eventlet.listen(
+wsgi.server(eventlet.listen)
 
 pyscxml.py
 eventlet.spawn
