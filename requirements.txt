@@ -1,5 +1,7 @@
 Louie
-eventlet
-restlib
 suds
 lxml
+aiohttp
+aiofiles
+pydispatcher
+certifi

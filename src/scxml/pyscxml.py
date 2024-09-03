@@ -18,12 +18,12 @@ This file is part of PySCXML.
     @contact: johan@roxendal.com
 '''
 
+import asyncio
 from . import compiler
 from .interpreter import Interpreter
-from louie import dispatcher
+from pydispatch import dispatcher
 import logging
 import os
-import eventlet
 import errno
 import re
 from .eventprocessor import Event
@@ -55,7 +55,7 @@ def default_logfunction(label, msg):
     print("%s%s%s" % (label, ": " if label and msg is not None else "", msg))
 
 
-class StateMachine(object):
+class StateMachine:
     '''
     This class provides the entry point for the PySCXML library. 
     '''
@@ -133,17 +133,17 @@ class StateMachine(object):
                 self.logger.error("PYTHONPATH: '%s'" % search_path)
                 raise IOError(errno.ENOENT, msg, uri)
     
-    def _start(self):
+    async def _start(self):
         self.compiler.instantiate_datamodel()
 
-        self.interpreter.interpret(self.doc)
+        await self.interpreter.interpret(self.doc)
     
-    def _start_invoke(self, invokeid=None):
+    async def _start_invoke(self, invokeid=None):
         self.compiler.instantiate_datamodel()
-        self.interpreter.interpret(self.doc, invokeid)
+        await self.interpreter.interpret(self.doc, invokeid)
     
     
-    def start(self):
+    async def start(self):
         '''Takes the statemachine to its initial state'''
         if not self.interpreter.running:
             raise RuntimeError("The StateMachine instance may only be started once.")
@@ -151,19 +151,20 @@ class StateMachine(object):
             doc = os.path.join(self.filedir, self.filename) if self.filedir else ""
             self.logger.info("Starting %s" % doc)
         self._start()
-        self.interpreter.mainEventLoop()
+        await self.interpreter.mainEventLoop()
     
-    def start_threaded(self):
-        self._start()
-        eventlet.spawn(self.interpreter.mainEventLoop)
-        eventlet.greenthread.sleep()
+    async def start_threaded(self):
+        raise NotImplemented()
+        await self._start()
+        #eventlet.spawn(self.interpreter.mainEventLoop)
+        asyncio.sleep(0)
         
     def isFinished(self):
         '''Returns True if the statemachine has reached it 
         top-level final state or was cancelled.'''
         return self.is_finished
     
-    def cancel(self):
+    async def cancel(self):
         '''
         Stops the execution of the StateMachine, causing 
         all the states in the current configuration to execute 
@@ -172,19 +173,19 @@ class StateMachine(object):
         top-level <final /> state in your document instead.  
         '''
         self.interpreter.running = False
-        self.interpreter.externalQueue.put(CancelEvent())
+        await self.interpreter.externalQueue.put(CancelEvent())
     
-    def send(self, name, data={}):
+    async def send(self, name, data={}):
         '''
         Send an event to the running machine. 
         @param name: the event name (string)
         @param data: the data passed to the _event.data variable (any data type)
         '''
-        self._send(name, data)
-        eventlet.greenthread.sleep()
+        await self._send(name, data)
+        await asyncio.sleep(0)
             
-    def _send(self, name, data={}, invokeid = None, toQueue = None):
-        self.interpreter.send(name, data, invokeid, toQueue)
+    async def _send(self, name, data={}, invokeid = None, toQueue = None):
+        await self.interpreter.send(name, data, invokeid, toQueue)
         
     def In(self, statename):
         '''
@@ -198,7 +199,8 @@ class StateMachine(object):
         if sender is self.interpreter:
             self.is_finished = True
             for timer in list(self.compiler.timer_mapping.values()):
-                eventlet.greenthread.cancel(timer)
+                # TODO
+                #eventlet.greenthread.cancel(timer)
                 del timer
             dispatcher.disconnect(self, "signal_exit", self.interpreter)
             dispatcher.send("signal_exit", self, final=final)
@@ -213,7 +215,7 @@ class StateMachine(object):
             self.cancel()
     
 
-class MultiSession(object):
+class MultiSession:
     
     def __init__(self, default_scxml_source=None, init_sessions={}, default_datamodel="python", log_function=default_logfunction):
         '''
@@ -252,11 +254,11 @@ class MultiSession(object):
     def __contains__(self, item):
         return item in self.sm_mapping
     
-    def start(self):
+    async def start(self):
         ''' launches the initialized sessions by calling start_threaded() on each sm'''
         for sm in self:
             sm.start_threaded()
-        eventlet.greenthread.sleep()
+        await asyncio.sleep(0)
             
     
     def make_session(self, sessionid, source):
@@ -294,14 +296,14 @@ class MultiSession(object):
         sm.datamodel["_ioprocessors"] = processors
 
     
-    def send(self, event, data={}, to_session=None):
+    async def send(self, event, data={}, to_session=None):
         '''send an event to the specified session. if to_session is None or "", 
         the event is sent to all active sessions.'''
         if to_session:
             self[to_session].send(event, data)
         else:
-            for session in self.sm_mapping:
-                self.sm_mapping[session].send(event, data)
+            async for session in self.sm_mapping:
+                await self.sm_mapping[session].send(event, data)
     
     def cancel(self):
         for sm in self:
@@ -321,7 +323,7 @@ class MultiSession(object):
     
     def __exit__(self, exc_type, exc_value, traceback):
         self.cancel()
-        eventlet.greenthread.sleep()
+        #asyncio.sleep()
 
 class custom_executable(object):
     '''A decorator for defining custom executable content'''
@@ -431,12 +433,12 @@ test467.scxml
 #    dispatcher.connect(default_logfunction, "invoke_log")
 #    sm = StateMachine("new_xpath_tests/failed/test152.scxml")
 #    sm = StateMachine("xpath_test.xml")
-    sm = StateMachine("assertions_ecmascript/test242.scxml")
+#    sm = StateMachine("assertions_ecmascript/test242.scxml")
 #    sm = StateMachine("exit_issue.xml")
-#    sm = StateMachine(xml)
+    sm = StateMachine(xml)
 #    sm = StateMachine("inline_data.xml")
 #    os.environ["PYSCXMLPATH"] += ":" + sm.filedir
 #    sm = StateMachine("assertions_ecmascript/test154.scxml")
-    sm.start()
+    asyncio.run(sm.start())
 
 

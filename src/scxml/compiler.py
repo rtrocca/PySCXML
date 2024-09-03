@@ -759,7 +759,7 @@ class Compiler(object):
         
         def start_invoke(wrapper):
             try:
-                inv = self.parseInvoke(node, parentId, n)
+                inv = self._parseInvoke(node, parentId, n)
             except InvokeError as e:
                 self.logger.exception("Line %s: Exception while parsing invoke." % (node.sourceline))
                 self.raiseError("error.execution.invoke.parseerror", e )
@@ -799,7 +799,7 @@ class Compiler(object):
             return
         self.interpreter.send(signal, data=kwargs.get("data", {}), invokeid=sender.invokeid)  
     
-    def parseInvoke(self, node, parentId, n):
+    def _parseInvoke(self, node, parentId, n):
         invokeid = node.get("id")
         if not invokeid:
             
@@ -840,10 +840,10 @@ class Compiler(object):
                 else:
                     raise Exception("Error when parsing contentNode, content is %s" % cnt)
             
-        elif invtype == "x-pyscxml-soap":
-            inv = InvokeSOAP()
-        elif invtype == "x-pyscxml-httpserver":
-            inv = InvokeHTTP()
+        #elif invtype == "x-pyscxml-soap":
+        #    inv = InvokeSOAP()
+        #elif invtype == "x-pyscxml-httpserver":
+        #    inv = InvokeHTTP()
         else:
             raise NotImplementedError("The invoke type '%s' is not supported by the platform." % invtype)
         inv.invokeid = invokeid
